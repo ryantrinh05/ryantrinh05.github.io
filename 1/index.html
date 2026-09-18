@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Project 0</title>
+    <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+    <nav class="nav-bar">
+        <a href="../0/index.html" class="nav-link">← Project 0</a>
+        <a href="../error.html" class="nav-link">Project 2 →</a>
+    </nav>
+    <h1>Project 1: Colorizing the Prokudin-Gorskii Photo Collection</h1>
+    <div>
+        <h2>Part 1: Single-scale Alignment</h2>
+        <div class="images">
+            <figure>
+                <img src="./media/cathedral_single.jpg" alt="Single-scaled Cathedral">
+                <figcaption>Single-scaled cathedral.jpg</figcaption>
+            </figure>
+        </div>
+        <p>To begin transforming the gray-scaled glass plate images into a single colored one, they first had to be preprocessed
+            such that our alignment program could interpret their pixels. This meant converting the images into float arrays using
+            <code>cv.imread()</code> and <code>im.astype(np.float32)</code>. This transformation into an array allows us to
+            separate the image into its three glass plates, which then can be stacked together via <code>np.dstack()</code>.
+            However, the resulting image at this point isn't much better than just a gray-scaled one as the colors are all
+            over the place.
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/iter1.jpg" alt="Unaligned Stacked Cathedral">
+                <figcaption>Unaligned Stacked cathedral.jpg</figcaption>
+            </figure>
+        </div>
+        <p>
+            To further improve our images, we need to properly align the different glass plates on top of each other. We will use
+            L2 Norm, which is defined by the equation <code>sqrt(sum(sum((image1-image2)^2)))</code>. This formula works as it 
+            checks by the pixel-wise difference between the two plates. If the two plates are perfectly aligned with
+            one another, then the score will be relatively low, albeit likely not 0 as there may be difference in illuminant.
+        </p>
+        <p>
+            Now that we can score the alignment of the plates, we need to be able to loop through different alignments to figure out
+            which is the true one. To do this, we will hold the blue plate still, and shift the green and red plates around via
+            <code>np.roll()</code>, taking the one that scores the best. We will cap the maximum shift distance to be 15 pixels in
+            both dimensions, as it contains the most likely solution and any more would increase the processing time by a substantial 
+            amount.
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/iter2.jpg" alt="Aligned Stacked Cathedral">
+                <figcaption>Aligned Stacked cathedral.jpg</figcaption>
+            </figure>
+        </div>
+        <p>
+            While much better than the unaligned image, there are still a few unaligned spots present. To fix this, we will crop
+            down our images as the border contains a lot of external details that are different between glass plates of the same photo. 
+            This makes our L2 Norm a bit inconsistent, as the border would still be adding or subtracting from the final score.
+            And while this does cut out information from the photos, overall it helps the L2 Norm focus on the important parts. 
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/cropped_cathedral.jpg" alt="Cropped Glass Plate of the Cathedral">
+                <figcaption>Cropped cathedral.jpg</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/cathedral_single.jpg" alt="Single-scaled Cathedral">
+                <figcaption>Single-scaled cathedral.jpg</figcaption>
+            </figure>
+        </div>
+        <p>
+            When testing on the cathedral, the cropped pixel amount was fixed to be 20 pixels. In order to generalize it to the
+            other photos, the fixed 20 pixels became 10% of each side. This is especially important later on with the multi-scaled
+            alignment as for the larger photos, 20 pixels won't be enough to cover the entire border.
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/monastery_single.jpg" alt="Single-scaled Monastery">
+                <figcaption>Single-scaled monastery.jpg</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/tobolsk_single.jpg" alt="Single-scaled Tobolsk">
+                <figcaption>Single-scaled tobolsk.jpg</figcaption>
+            </figure>
+        </div>
+    </div>
+    
+    <div>
+        <h2>Part 2: Multi-scale Alignment</h2>
+        <div class="images">
+            <figure>
+                <img src="./media/icon.jpg" alt="Multi-scaled Icon">
+                <figcaption>Multi-scaled icon.tif</figcaption>
+            </figure>
+
+            <figure>
+                <img src="./media/harvesters.jpg" alt="Multi-scaled Harvesters">
+                <figcaption>Multi-scaled harvesters.tif</figcaption>
+            </figure>
+        
+        </div>
+         
+        <p>
+           While the single-scaled alignment works for smaller images, roughly around 400px by 400px, it not only takes
+           much longer to run on larger images, but it also may not correctly align the photos. 
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/iter5.jpg" alt="Single-scaled Melons">
+                <figcaption>Single-scale Alignment ran on melons.tif</figcaption>
+            </figure>
+        
+        </div>
+
+        <p>
+            In order to handle larger photos, we first need to implement downscaling and image pyramids. To downscale our images,
+            we will use <code>sk.transform.rescale()</code> with a scaling factor of 2. Our image pyramid will be composed of 
+            the original image, along with three additional downscaled variants, each of which gets progressively more downscaled, 
+            resulting in 4 total photos.
+        </p>
+
+        <div class="images">
+            <figure>
+                <img src="./media/image_pyramid_melons.jpg" alt="Image Pyramid of Melons">
+                <figcaption>Image Pyramid of melons.tif</figcaption>
+            </figure>
+        </div>
+        <p>
+            Now that we have the image pyramids, alignment can be performed, starting with the smallest image. The calculated displacements
+            can then be multiplied by 2 before applying them to the next smallest image, allowing for more precision as the images
+            gain back more of their pixels. This continues on until the alignment displacement is found for the original image.
+        </p>
+
+        <p>
+            One last issue is the window size for the multi-scale alignment. In the single-scale case, all of the images
+            were small and used a fixed 30 by 30 pixel window. In the multi-scale case, each layer's alignment could have its
+            own window size. If they all used the 30 by 30 pixel window, it would take much longer than maximum 1 minute to run, so the
+            coarsest layer had the largest window size, while the rest were lowered to 10 by 10 pixels. For the coarsest layer, having 
+            too small of a window, like 10 by 10 pixels, resulted in some larger images not properly aligning, while having too large of a 
+            window, like 80 by 80 pixels, led to the L2 Norm scoring some invalid spots the best. 
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/church_fail.jpg" alt="Small window size with church.tif">
+                <figcaption>Small window size with church.tif</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/melons_fail.jpg" alt="Large window size with melons.tif">
+                <figcaption>Large window size with melons.tif</figcaption>
+            </figure>
+        </div>
+        <p>
+            In the end, the final window size was 40 by 40 pixels, then immediately jumped down to 10 by 10 pix els for the 
+            rest of the layers.
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/melons.jpg" alt="Multi-scaled melons.tif">
+                <figcaption>Multi-scaled melons.tif</figcaption>
+            </figure>
+        </div>
+        
+        <p>
+            The only image that still didn't end up properly colorized with the multi-scaled alignment was
+            <code>emir.tif</code>. This is because although all three glass plates are gray-scaled, they each may look
+            slightly different from one another. As different colored light may be reflecting off of certain items differently, 
+            the resulting gray-scaled images could be noticeably different from one another. This makes aligning them 
+            much more difficult without any white balancing or color correct.
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/emir.jpg" alt="Slightly off emir.tif">
+                <figcaption>Multi-scaled emir.tif</figcaption>
+            </figure>
+        </div>
+        
+
+    </div>
+    
+    <div>
+        <h2>Part 3: The Gallery</h2>
+        <h3>Original Photos</h3>
+        <div class="gallery">
+            <figure>
+                <img src="./media/cathedral.jpg" alt="Multi-scaled cathedral.jpg">
+                <figcaption>Multi-scaled cathedral.jpg </figcaption>
+            </figure>
+            <figure>
+                <img src="./media/monastery.jpg" alt="Multi-scaled monastery.jpg">
+                <figcaption>Multi-scaled monastery.jpg</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/tobolsk.jpg" alt="Multi-scaled tobolsk.jpg">
+                <figcaption>Multi-scaled tobolsk.jpg</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/church.jpg" alt="Multi-scaled church.tif">
+                <figcaption>Multi-scaled church.tif</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/emir.jpg" alt="Multi-scaled emir.tif">
+                <figcaption>Multi-scaled emir.tif</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/harvesters.jpg" alt="Multi-scaled harvesters.tif">
+                <figcaption>Multi-scaled harvesters.tif</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/icon.jpg" alt="Multi-scaled icon.tif">
+                <figcaption>Multi-scaled icon.tif</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/ilemselga.jpg" alt="Multi-scaled ilemselga.tif">
+                <figcaption>Multi-scaled ilemselga.tif</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/melons.jpg" alt="Multi-scaled melons.tif">
+                <figcaption>Multi-scaled melons.tif</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/religous_painting.jpg" alt="Multi-scaled religous_painting.tif">
+                <figcaption>Multi-scaled religous_painting.tif</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/self_portrait.jpg" alt="Multi-scaled self_portrait.tif">
+                <figcaption>Multi-scaled self_portrait.tif</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/siren.jpg" alt="Multi-scaled siren.tif">
+                <figcaption>Multi-scaled siren.tif</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/three_generations.jpg" alt="Multi-scaled three_generations.tif">
+                <figcaption>Multi-scaled three_generations.tif</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/wharf.jpg" alt="Multi-scaled wharf.tif">
+                <figcaption>Multi-scaled wharf.tif</figcaption>
+            </figure>
+        </div>
+        <table class="table">
+            <tr>
+                <th>Image</th>
+                <th>Green Displacement (y, x)</th>
+                <th>Red Displacement (y, x)</th>
+            </tr>
+            <tr>
+                <td>cathedral.jpg</td>
+                <td>[5, 2]</td>
+                <td>[12, 3]</td>
+            </tr>
+            <tr>
+                <td>monastery.jpg</td>
+                <td>[-3, 2]</td>
+                <td>[3, 2]</td>
+            </tr>
+            <tr>
+                <td>tobolsk.jpg</td>
+                <td>[3, 3]</td>
+                <td>[6, 3]</td>
+            </tr>
+            <tr>
+                <td>church.tif</td>
+                <td>[25, 4]</td>
+                <td>[58, -4]</td>
+            </tr>
+            <tr>
+                <td>melons.tif</td>
+                <td>[82, 11]</td>
+                <td>[178, 13]</td>
+            </tr>
+            <tr>
+                <td>emir.tif</td>
+                <td>[49, 24]</td>
+                <td>[103, 57]</td>
+            </tr>
+            <tr>
+                <td>harvesters.tif</td>
+                <td>[59, 16]</td>
+                <td>[124, 13]</td>
+            </tr>
+            <tr>
+                <td>icon.tif</td>
+                <td>[41, 17]</td>
+                <td>[90, 23]</td>
+            </tr>
+            <tr>
+                <td>ilemselga.tif</td>
+                <td>[39, 7]</td>
+                <td>[130, 11]</td>
+            </tr>
+            <tr>
+                <td>religous_painting.tif</td>
+                <td>[28, 3]</td>
+                <td>[68, 7]</td>
+            </tr>
+            <tr>
+                <td>self_portrait.tif</td>
+                <td>[79, 29]</td>
+                <td>[176, 37]</td>
+            </tr>
+            <tr>
+                <td>siren.tif</td>
+                <td>[49, -6]</td>
+                <td>[96, -25]</td>
+            </tr>
+            <tr>
+                <td>three_generations.tif</td>
+                <td>[53, 14]</td>
+                <td>[112, 11]</td>
+            </tr>
+            <tr>
+                <td>wharf.tif</td>
+                <td>[15, -7]</td>
+                <td>[83, -16]</td>
+            </tr>
+        </table>
+        <h3>Extra Examples</h3>
+        <div class="gallery">
+            <figure>
+                <img src="./media/hay.jpg" alt="Multi-scaled hay.tif">
+                <figcaption>Multi-scaled hay.tif</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/station.jpg" alt="Multi-scaled station.tif">
+                <figcaption>Multi-scaled station.tif</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/skeleton.jpg" alt="Multi-scaled skeleton.tif">
+                <figcaption>Multi-scaled skeleton.tif</figcaption>
+            </figure>
+        </div>
+        <table class="table">
+            <tr>
+                <th>Image</th>
+                <th>Green Displacement (y, x)</th>
+                <th>Red Displacement (y, x)</th>
+            </tr>
+            <tr>
+                <td>hay.tif</td>
+                <td>[66, -6]</td>
+                <td>[139, -13]</td>
+            </tr>
+            <tr>
+                <td>station.tif</td>
+                <td>[66, 9]</td>
+                <td>[141, 5]</td>
+            </tr>
+            <tr>
+                <td>skeleton.tif</td>
+                <td>[53, 4]</td>
+                <td>[105, -48]</td>
+            </tr>
+        </table>
+       
+    </div>
+    <nav class="nav-bar">
+        <a href="../0/index.html" class="nav-link">← Project 0</a>
+        <a href="../error.html" class="nav-link">Project 2 →</a>
+    </nav>
+</body>
+</html>
