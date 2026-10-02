@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Project 2</title>
+    <link rel="stylesheet" href="../style.css">
+    <!-- Prism CSS for code block styling -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+    <!-- Prism JS for language parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+</head>
+<body>
+    <nav class="nav-bar">
+        <a href="../1/index.html" class="nav-link">← Project 1</a>
+        <a href="../error.html" class="nav-link">Project 3 →</a>
+    </nav>
+    <h1>Project 2: Fun with Filters and Frequencies</h1>
+    <div>
+        <h2>Convolution From Scratch</h2>
+        <p>
+            To implement convolution using four for loops, I first had to determine the 
+            values that we would be looping over. As convolution involves computing the
+            weighted sum of a specific region, the values used within the loops would be
+            the height and width of both the kernel and the image, with the image dimensions
+            more specifically making up the outer loop.    
+        
+            From there, we flip the kernel and then move it across the image, totaling up
+            the overlapping areas in order to calculate the corresponding coordinates of the 
+            output matrix. 
+        </p>
+        <p>
+            To handle the boundaries of the convolution, we use <code>np.pad()</code> to pad the 
+            image with 0s. For each side, the pad size is equal to half the kernel size as that's
+            the maximum distance out necessary to properly run the convolution.
+        </p>
+        <p>
+            Handling the padding this way also helps with the looping as it allows the
+            center of the kernel to be <code>img_y + k_y</code> and <code>img_x + k_x</code>,
+            meaning that we don't need any special logic to make sure that the weighted sum
+            is properly calculated.
+        </p>
+        <p>
+            For the two-loop implementation, the only major difference was that instead of the 
+            two internal loops, they were replaced with one matrix multiplication and its summation.
+        </p>
+        <pre><code class="language-python">
+            # Part 1.1: Four For Loop Convolution
+            def convolve_four_loop(kernel, image):
+                k_h, k_w = kernel.shape
+                img_h, img_w = image.shape
+                flipped_kernel = np.flip(kernel)
+                h_pad = k_h // 2
+                w_pad = k_w // 2
+                padded_img = np.pad(image, ((h_pad, h_pad), (w_pad, w_pad)))
+
+                result = np.zeros((img_h, img_w))
+                for img_y in range(0, img_h):
+                    for img_x in range(0, img_w):
+
+                        total = 0
+                        for k_y in range(0, k_h):
+                            for k_x in range(0, k_w):
+                                total += padded_img[img_y + k_y, img_x + k_x] * flipped_kernel[k_y, k_x]
+                        result[img_y, img_x] = total
+
+                return result
+                        
+
+            # Part 1.1: Two For Loop Convolution
+            def convolve_two_loop(kernel, image):
+                k_h, k_w = kernel.shape
+                img_h, img_w = image.shape
+                flipped_kernel = np.flip(kernel)
+                h_pad = k_h // 2
+                w_pad = k_w // 2
+                padded_img = np.pad(image, ((h_pad, h_pad), (w_pad, w_pad)))
+
+                result = np.zeros((img_h, img_w))
+                for img_y in range(0, img_h):
+                    for img_x in range(0, img_w):
+
+                        result[img_y, img_x] = np.sum(padded_img[img_y:img_y + k_h, img_x:img_x + k_w] * flipped_kernel)
+
+                return result
+        </code></pre>
+        <p>
+            When comparing both loop implementation with <code>scipy.signal.convolve2d</code>, there was no difference
+            between them when it came to the result. Both the four and two loop implementation properly
+            convolved the selfie with 9x9 Box filter and the finite difference operators
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/1.1/selfie_box.jpg" alt="selfie with box filter">
+                <figcaption>Box filter with convolve2d</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/1.1/selfie_box4.jpg" alt="selfie with box filter and four loop convolution">
+                <figcaption>Box filter with four loop convolution</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/1.1/selfie_box2.jpg" alt="selfie with box filter and two loop convolution">
+                <figcaption>Box filter with two loop convolution</figcaption>
+            </figure>
+        </div>
+        <p>
+            However, the custom implementation and convolve2d did differ when it came to runtime.
+            For instance, convolve2d averaged 8 seconds with the box filter, the four loop box filter
+            averaged 90 seconds, and the two loop box filter averaged 20 seconds. This pattern continued
+            with the finite difference operators, though much faster across the board due to their
+            smaller dimensions.
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/1.1/selfie_Dx.jpg" alt="selfie with Dx filter">
+                <figcaption>Dx filter with convolve2d</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/1.1/selfie_Dx2.jpg" alt="selfie with Dx filter and two loop convolution">
+                <figcaption>Dx filter with two loop convolution</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/1.1/selfie_Dy.jpg" alt="selfie with Dy filter">
+                <figcaption>Dy filter with convolve2d</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/1.1/selfie_Dy2.jpg" alt="selfie with Dy filter and two loop convolution">
+                <figcaption>Dy filter with two loop convolution</figcaption>
+            </figure>
+        </div>
+    </div>
+    <div>
+        <h2>Gradient Magnitude and Edge Images</h2>
+        <div class="images">
+            <figure>
+                <img src="./media/1.2/cameraman.png" alt="cameraman">
+                <figcaption>Original Cameraman</figcaption>
+            </figure>
+        </div>
+        <p>
+            Using the finite difference operators, we are also able to compute an image's 
+            gradient magnitude and later the edge image. For the gradient magnitude, we first
+            convolve the original image with both finite difference operators. This gives 
+            us the differences in both dimensions that we can use to calculate the magnitude
+            via <code>np.sqrt(cameraman_Dx ** 2 + cameraman_Dy ** 2)</code>. The resulting
+            image shows both differences combined, highlighting the high frequency areas.
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/1.2/cameraman_Dx.jpg" alt="Dx of Cameraman">
+                <figcaption>Dx Operator of Cameraman.png</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/1.2/cameraman_Dy.jpg" alt="Dy of Cameraman">
+                <figcaption>Dy Operator of Cameraman.png</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/1.2/gradient_mag.jpg" alt="Gradient Magnitude of Cameraman">
+                <figcaption>Gradient Magnitude of Cameraman.png</figcaption>
+            </figure>
+        </div>
+        <p>
+            To emphasize the high frequency areas even more, we can transform it into an edge image
+            by binarizing each pixel based on a selected threshold.
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/1.2/edge_image.jpg" alt="Edge Image of Cameraman">
+                <figcaption>Edge Image of Cameraman.png</figcaption>
+            </figure>
+        </div>
+        <p>
+            The threshold chosen for this image is <code>0.23</code>. With any lower threshold,
+            too many background pixels would light up. If the threshold were 0.25 or higher parts
+            of the cameraman would begin to disappear.
+        </p>
+    </div>
+    <div>
+        <h2>Derivative of Gaussian (DoG) Filter</h2>
+        <p>Even with our specific threshold, there is still a large amount of noise present within
+            the edge image. To fix this, we can convolve our finite difference operators 
+            with a version of our cameraman that was already convolved with a gaussian filter.
+            This smooths out a lot of the background noise, allowing our finite difference operators
+            to just pick up on the cameraman.
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/1.2/edge_image.jpg" alt="Edge Image of Cameraman">
+                <figcaption>Edge Image of Cameraman.png</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/1.3/edge_image.jpg" alt="Smoothed Edge Image of Cameraman">
+                <figcaption>Smoothed Edge Image of Cameraman.png</figcaption>
+            </figure>
+        </div>
+        <p>
+            In the pictures above, the effect of the gaussians can be seen, primarily near
+            the bottom of the images where most of the noise is located. In the image with the
+            gaussian, basically all of the noise is gone. However, the cameraman's outline is still
+            present and mostly intact.
+        </p>
+        <p>
+            To simplify this process, we can create Derivative of Gaussian (DoG) filters,
+            allowing us to only have to perform one convolution with our target image. These filters
+            are created by convolving our gaussian with the finite difference operators.
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/1.3/gaussian_2D.jpg" alt="2D Gaussian">
+                <figcaption>2D Gaussian</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/1.3/gaussian_Dx.jpg" alt="Gaussian Dx Operator">
+                <figcaption>Gaussian Dx Operator</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/1.3/gaussian_Dy.jpg" alt="Gaussian Dy Operator">
+                <figcaption>Gaussian Dy Operator</figcaption>
+            </figure>
+        </div>
+        <p>
+            Using our DoG filters, we are able to end up with the same image using only 
+            one convolution.
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/1.3/single_convolution_edge_image.jpg" alt="Smoothed Edge Image of Cameraman">
+                <figcaption>Smoothed Edge Image of Cameraman.png with DoG filters</figcaption>
+            </figure>
+        </div>
+    </div>
+    <div>
+        <h2>Image "Sharpening"</h2>
+        <div class="images">
+            <figure>
+                <img src="./media/2.1/taj.jpg" alt="taj">
+                <figcaption>Taj Mahal</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.1/bird.jpg" alt="bird">
+                <figcaption>Bird</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.1/dog.jpg" alt="dog">
+                <figcaption>Dog</figcaption>
+            </figure>
+        </div>
+        <p>
+            Beyond just using gaussian filters to smooth out our images, we can also use them
+            to sharpen our blurry images. To do this, we will first convolve our blurry image
+            with the gaussian. The gaussian acts as a low-pass filter, meaning that 
+            we end up with just the low frequencies of our image.
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/2.1/low_freq_taj.jpg" alt="low frequency taj">
+                <figcaption>Low Frequency Taj Mahal</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.1/low_freq_bird.jpg" alt="low frequency bird">
+                <figcaption>Low Frequency Bird</figcaption>
+            </figure>
+        </div>
+        <p>
+            By then subtracting our original images with their low frequency counterpart, 
+            we end up with just our high frequency images.
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/2.1/high_freq_taj.jpg" alt="high frequency taj">
+                <figcaption>High Frequency Taj Mahal</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.1/high_freq_bird.jpg" alt="high frequency bird">
+                <figcaption>High Frequency Bird</figcaption>
+            </figure>
+        </div>
+        <p>
+            If we add these high frequencies back to the original image, we can "sharpen" them,
+            making the edges pop out more.
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/2.1/sharpened_taj.jpg" alt="Sharpened taj">
+                <figcaption>Sharpened Taj Mahal</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.1/sharpened_bird.jpg" alt="Sharpened bird">
+                <figcaption>Sharpened Bird</figcaption>
+            </figure>
+        </div>
+        <p>
+            For the images above, their high frequency versions are added with a 1x multiplier.
+            We then get ultra sharpened images if we up this multiplier.
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/2.1/ultra_sharpened_taj.jpg" alt="ultra Sharpened taj">
+                <figcaption>2x Sharpened Taj Mahal</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.1/ultra_sharpened_bird.jpg" alt="ultra Sharpened bird">
+                <figcaption>2x Sharpened Bird</figcaption>
+            </figure>
+        </div>
+        <p>
+            To demonstrate the sharpening one more time, we can even intentionally blur an image and
+            then try to resharpen it back.
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/2.1/dog.jpg" alt="Dog">
+                <figcaption>Original Dog</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.1/blurred_dog.jpg" alt="Blurry">
+                <figcaption>Blurred Dog</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.1/ultra_sharpened_dog.jpg" alt="ultra Sharpened dog">
+                <figcaption>2x Sharpened Dog</figcaption>
+            </figure>
+        </div>
+        <p>
+            While not all of the original details have been returned, the sharpened dog contains
+            substantially more detail than the original blurred one.
+        </p>
+        <p>
+            One last key detail about this section is that, unlike the previous images who were
+            normalized in order to be properly displayed, the sharpened images were rather
+            clipped between 0 and 1 using <code>np.clip()</code>. While this doesn't change
+            anything mathematically, it does make transformations like sharpening easier to see.
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/2.1/ultra_sharpened_taj.jpg" alt="ultra Sharpened taj">
+                <figcaption>2x Sharpened Taj Mahal</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.1/normalized_ultra_sharpened_taj.jpg" alt="normalized ultra Sharpened taj">
+                <figcaption>Normalized 2x Sharpened Taj Mahal</figcaption>
+            </figure>
+        </div>
+    </div>
+    <div>
+        <h2>Hybrid Images</h2>
+        <p>
+            With frequency transformations, we can also use them to combine two images into one
+            hybrid image.
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/2.2/DerekPicture.jpg" alt="Derek">
+                <figcaption>Derek</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.2/nutmeg.jpg" alt="nutmeg">
+                <figcaption>Nutmeg</figcaption>
+            </figure>
+                        <figure>
+                <img src="./media/2.2/nutrek.jpg" alt="Derek + Nutmeg">
+                <figcaption>Hybrid of Derek and Nutmeg</figcaption>
+            </figure>
+        </div>
+        <p>
+            To start, we first have to align our two images. Even though the alignment doesn't
+            change any of the frequency transformations, it does help the hybrid illusion out as
+            properly aligned images make both images much easier to see.
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/2.2/cat_yawning.jpg" alt="Cat">
+                <figcaption>Cat (By Janessa Pretorius)</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.2/lion_yawning.jpg" alt="Lion">
+                <figcaption>Lion (By Leon Aschemann)</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.2/aligned_img.jpg" alt="Cat + Lion">
+                <figcaption>Lion and Cat Aligned</figcaption>
+            </figure>
+        </div>
+        <p>
+            Now that we know the proper alignment of the images, we can pass one image through
+            a high pass filter (the cat), and the other through a low pass filter (the lion).
+            In terms of the cutoff frequencies, I chose sigma of 5 and 7 respectively for the 
+            cat and lion. I found a sigma around 6 to be best for images their size.
+            Moreover, the High-pass image has a slightly higher sigma as it makes it easier
+            to see when ontop of the low pass image.
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/2.2/fft_im1.jpg" alt="Frequency Response of Cat">
+                <figcaption>Frequency Response of Cat</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.2/fft_im2.jpg" alt="Frequency Response of Lion">
+                <figcaption>Frequency Response of Lion</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.2/fft_hf_im1.jpg" alt="HP Frequency Response of Cat">
+                <figcaption>High Pass Cat (Sigma = 7)</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.2/fft_lf_im2.jpg" alt="LP Frequency Response of Lion">
+                <figcaption>Low Pass Lion (Sigma = 5)</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.2/hf_im1.jpg" alt="HP  of Cat">
+                <figcaption>High Pass Cat (Sigma = 7)</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.2/lf_im2.jpg" alt="LP  of Lion">
+                <figcaption>Low Pass Lion (Sigma = 5)</figcaption>
+            </figure>
+        </div>
+        <p>
+            With both high pass and low pass images, we can add them together to get our hybrid image.
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/2.2/ultra_cat.jpg" alt="Cat + Lion">
+                <figcaption>Hybrid of Cat and Lion</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.2/fft_hybrid.jpg" alt="FR of Cat + Lion">
+                <figcaption>FR of Hybrid Cat/Lion</figcaption>
+            </figure>
+        </div>
+        <p>
+            Here is another example of a hybrid image merging a bicycle and a motorcycle.
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/2.2/bicycle.jpg" alt="bicycle">
+                <figcaption>Bicycle (By Adboodi Vesakaran)</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.2/motorcycle.jpg" alt="motorcycle">
+                <figcaption>motorcycle (By Suhas Hanjar)</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.2/bimotor.jpg" alt="Bi + Motorcycle">
+                <figcaption>Hybrid of Bicycle and Motorcycle</figcaption>
+            </figure>
+        </div>
+    </div>
+    <div>
+        <h2>Gaussian and Laplacian Stacks</h2>
+        <div class="images">
+            <figure>
+                <img src="./media/2.34/apple.jpeg" alt="apple">
+                <figcaption>Apple</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.34/orange.jpeg" alt="orange">
+                <figcaption>Orange</figcaption>
+            </figure>
+        </div>
+        <p>
+            Another technique we can do with frequency transformation is blending two 
+            images together. But to do this, first we need to create Gaussian and Laplacian stacks
+            of our images.
+        </p>
+        <p>
+            To get the Gaussian Stack, we repeatedly convolve our image with a gaussian filter.
+            In order for each level of the stack to be constantly blurred enough, the Sigma
+            is set to <code>2 ** i</code>, where i is the level of the stack. With the Gaussian,
+            the Laplacian stack can be calculated by subtracting neighboring layers of the gaussian stack.
+        </p>
+        <div class="gallery">
+            <!-- Gaussian Stack - Level 0 -->
+            <figure>
+                <img src="./media/2.34/apple/g_img0.jpg" alt="Apple Gaussian Level 0">
+                <figcaption>Apple Gaussian Stack - Level 0</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.34/orange/g_img0.jpg" alt="Orange Gaussian Level 0">
+                <figcaption>Orange Gaussian Stack - Level 0</figcaption>
+            </figure>
+
+            <!-- Gaussian Stack - Level 1 -->
+            <figure>
+                <img src="./media/2.34/apple/g_img1.jpg" alt="Apple Gaussian Level 1">
+                <figcaption>Apple Gaussian Stack - Level 1</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.34/orange/g_img1.jpg" alt="Orange Gaussian Level 1">
+                <figcaption>Orange Gaussian Stack - Level 1</figcaption>
+            </figure>
+
+            <!-- Gaussian Stack - Level 2 -->
+            <figure>
+                <img src="./media/2.34/apple/g_img2.jpg" alt="Apple Gaussian Level 2">
+                <figcaption>Apple Gaussian Stack - Level 2</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.34/orange/g_img2.jpg" alt="Orange Gaussian Level 2">
+                <figcaption>Orange Gaussian Stack - Level 2</figcaption>
+            </figure>
+
+            <!-- Gaussian Stack - Level 3 -->
+            <figure>
+                <img src="./media/2.34/apple/g_img3.jpg" alt="Apple Gaussian Level 3">
+                <figcaption>Apple Gaussian Stack - Level 3</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.34/orange/g_img3.jpg" alt="Orange Gaussian Level 3">
+                <figcaption>Orange Gaussian Stack - Level 3</figcaption>
+            </figure>
+
+            <!-- Gaussian Stack - Level 4 -->
+            <figure>
+                <img src="./media/2.34/apple/g_img4.jpg" alt="Apple Gaussian Level 4">
+                <figcaption>Apple Gaussian Stack - Level 4</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.34/orange/g_img4.jpg" alt="Orange Gaussian Level 4">
+                <figcaption>Orange Gaussian Stack - Level 4</figcaption>
+            </figure>
+
+            <!-- Laplacian Stack - Level 0 -->
+            <figure>
+                <img src="./media/2.34/apple/l_img0.jpg" alt="Apple Laplacian Level 0">
+                <figcaption>Apple Laplacian Stack - Level 0</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.34/orange/l_img0.jpg" alt="Orange Laplacian Level 0">
+                <figcaption>Orange Laplacian Stack - Level 0</figcaption>
+            </figure>
+
+            <!-- Laplacian Stack - Level 1 -->
+            <figure>
+                <img src="./media/2.34/apple/l_img1.jpg" alt="Apple Laplacian Level 1">
+                <figcaption>Apple Laplacian Stack - Level 1</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.34/orange/l_img1.jpg" alt="Orange Laplacian Level 1">
+                <figcaption>Orange Laplacian Stack - Level 1</figcaption>
+            </figure>
+
+            <!-- Laplacian Stack - Level 2 -->
+            <figure>
+                <img src="./media/2.34/apple/l_img2.jpg" alt="Apple Laplacian Level 2">
+                <figcaption>Apple Laplacian Stack - Level 2</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.34/orange/l_img2.jpg" alt="Orange Laplacian Level 2">
+                <figcaption>Orange Laplacian Stack - Level 2</figcaption>
+            </figure>
+
+            <!-- Laplacian Stack - Level 3 -->
+            <figure>
+                <img src="./media/2.34/apple/l_img3.jpg" alt="Apple Laplacian Level 3">
+                <figcaption>Apple Laplacian Stack - Level 3</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.34/orange/l_img3.jpg" alt="Orange Laplacian Level 3">
+                <figcaption>Orange Laplacian Stack - Level 3</figcaption>
+            </figure>
+
+            <!-- Laplacian Stack - Level 4 -->
+            <figure>
+                <img src="./media/2.34/apple/l_img4.jpg" alt="Apple Laplacian Level 4">
+                <figcaption>Apple Laplacian Stack - Level 4</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.34/orange/l_img4.jpg" alt="Orange Laplacian Level 4">
+                <figcaption>Orange Laplacian Stack - Level 4</figcaption>
+            </figure>
+        </div>
+        <p>
+            Finally, we also create a gaussian stack for our mask, which for our Oraple,
+            will be one with a vertical seam.
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/2.34/mask.jpg" alt="Mask">
+                <figcaption>Original Mask</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.34/mask_blur.jpg" alt="Blurred Mask">
+                <figcaption>Gaussian-blurred Mask</figcaption>
+            </figure>
+        </div>
+    </div>
+
+    <div>
+        <h2>Multiresolution Blending</h2>
+        <p>
+            With the Laplacian Stacks and the Gaussian stack of the mask, we can recreate the Oraple.
+            More specifically, for each layer of the laplacian stacks, we will take the respective
+            layer of the mask's gaussian stack and use all three images to create the layer's blended
+            image.
+    
+            
+        </p>
+        <pre><code class="language-python">
+        masked_im1 = gaussian_mask[i] * laplacian_im1[i]
+        masked_im2 = (1 - gaussian_mask[i]) * laplacian_im2[i]
+        blended_level = masked_im1 + masked_im2
+        </code></pre>
+        <p>
+            Afterwards, all of the blended levels are summed up together, resulting in the 
+            multiresolution final blend.
+        </p>
+        <div class="gallery">
+            <figure>
+                <img src="./media/2.34/masked_im11.jpg" alt="Apple">
+                <figcaption></figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.34/masked_im21.jpg" alt="Orange">
+                <figcaption></figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.34/blended_level1.jpg" alt="Oraple">
+                <figcaption></figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.34/masked_im12.jpg" alt="Apple">
+                <figcaption></figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.34/masked_im22.jpg" alt="Orange">
+                <figcaption></figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.34/blended_level2.jpg" alt="Oraple">
+                <figcaption></figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.34/masked_im13.jpg" alt="Apple">
+                <figcaption></figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.34/masked_im23.jpg" alt="Orange">
+                <figcaption></figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.34/blended_level3.jpg" alt="Oraple">
+                <figcaption></figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.34/masked_im14.jpg" alt="Apple">
+                <figcaption></figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.34/masked_im24.jpg" alt="Orange">
+                <figcaption></figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.34/blended_level4.jpg" alt="Oraple">
+                <figcaption></figcaption>
+            </figure>
+        </div>
+        <p>
+            Here are two more custom blends!
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/2.34/mountain.jpg" alt="mountain">
+                <figcaption>Mountain (By Lywin)</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.34/beach.jpg" alt="beach">
+                <figcaption>Beach (By Catia Matos)</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.34/vertical_mask.jpg" alt="Vertical Mask">
+                <figcaption>Vertical Mask</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.34/mountain_beach.jpg" alt="Beach + Mountain">
+                <figcaption>Blending of Beach and Mountain</figcaption>
+            </figure>
+        </div>
+        <div class ="images">
+            <figure>
+                <img src="./media/2.34/stanford.jpg" alt="stanford">
+                <figcaption>Stanford (By Clement Proust)</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.34/elephant.jpg" alt="elephant">
+                <figcaption>Elephant (By Joost Van Os)</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.34/irregular_mask.jpg" alt="Irregular Mask">
+                <figcaption>Irregular Mask of Elephant</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/2.34/stanford_elephant.jpg" alt="Stanford + Elephant">
+                <figcaption>Blending of Stanford and Elephant</figcaption>
+            </figure>
+        </div>
+    </div>
+       
+
+    <nav class="nav-bar">
+        <a href="../1/index.html" class="nav-link">← Project 1</a>
+        <a href="../error.html" class="nav-link">Project 3 →</a>
+    </nav>
+</body>
+</html>
