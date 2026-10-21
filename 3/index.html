@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Project 3</title>
+    <link rel="stylesheet" href="../style.css">
+    <!-- Prism CSS for code block styling -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+    <!-- Prism JS for language parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    
+    <!-- MathJax for rendering mathematical equations -->
+    <script>
+        MathJax = {
+            tex: {
+            inlineMath: [['\\(', '\\)']],
+            displayMath: [['\\[', '\\]']]
+            }
+        };
+    </script>
+    <script
+        defer
+        src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+    </script>
+
+</head>
+<body>
+    <nav class="nav-bar">
+        <a href="../2/index.html" class="nav-link">← Project 2</a>
+        <a href="../error.html" class="nav-link">Project 4 →</a>
+    </nav>
+
+    <h1>Project 3: Fun with Flow Models</h1>
+    <div>
+        <div class="images">
+            <figure>
+                <img src="./media/parta/campanile.jpg" alt="Campanile">
+                <figcaption>Campanile</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/parta/example.png" alt="Hybrid Image">
+                <figcaption>Hybrid Image</figcaption>
+            </figure>
+        </div>
+    </div>
+
+    <div>
+        <h2>Constructing Noisy Training Inputs</h2>
+        <p>
+            Before we can start using any flow model, we need a way to create noisy training
+            inputs from our original images. To do this, we will interpolate between our clean image
+            and some random Gaussian noise. The equation for this is:
+            \[x_t = (1-t)x_0 + tx_1\]
+            with \(x_0\) representing the noise and \(x_1\) representing the clean image. We will use this 
+            equation in the <code>interpolate</code> function, resulting in the images below.
+        </p>
+
+        <div class="images">
+            <figure>
+                <img src="./media/parta/waterfall.jpg" alt="waterfall image">
+                <figcaption>Waterfall</figcaption>
+            </figure>
+        </div>
+        <div class="images">
+            <figure class="large-figure">
+                <img src="./media/parta/training_inputs.png" alt="Original image">
+                <figcaption>Original Image</figcaption>
+            </figure>
+        </div>
+
+        <h2>Classical Denoising</h2>
+        <p>
+            On top of just interpolating to obtain the noisy version of the original image, we also
+            can apply a Gaussian blur to them. This will help reduce the overall noise of the image. 
+            However, it does come with some tradeoffs as blurring the image
+            can remove the finer details of the images.
+        </p>
+
+        <div class="images">
+            <figure class="med-figure">
+                <img src="./media/parta/blur_0.25.png" alt="t = 0.25">
+                <figcaption>t = 0.25</figcaption>
+            </figure>
+            <figure class="med-figure">
+                <img src="./media/parta/blur_0.5.png" alt="t = 0.50">
+                <figcaption>t = 0.50</figcaption>
+            </figure>
+            <figure class="med-figure">
+                <img src="./media/parta/blur_0.75.png" alt="t = 0.75">
+                <figcaption>t = 0.75</figcaption>
+            </figure>
+        </div>
+        <p>
+            For the Gaussians, the sigmas used were 16, 4, and 2 for t=0.25, t=0.50,
+            and t=0.75 respectively. These were chosen as they minimized the error between
+            the noisy images and the original image. And while the amount of details
+            varies drastically depending on how much noise the images started with,
+            across the board the Gaussian blurring still did bring out some of the
+            lower frequency details of the waterfall.
+        </p>
+
+        <h2>One-Step Denoising</h2>
+        <p>
+            Rather than just relying on a Gaussian blur to denoise the images, we can also use a pretrained
+            flow model, utilized through the function <code>predict_velocity</code>. This function takes in
+            the partially noisy image, its current time step, and the condition, which is a prompt that dictates
+            how the flow model operates. With this flow model, we can use it to try and denoise the images
+            within one step.
+        </p>
+        <div class="images">
+            <figure class="large-figure">
+                <img src="./media/parta/one_step_0.25.png" alt="t = 0.25">
+                <figcaption>t = 0.25</figcaption>
+            </figure>
+            <figure class="large-figure">
+                <img src="./media/parta/one_step_0.5.png" alt="t = 0.50">
+                <figcaption>t = 0.50</figcaption>
+            </figure>
+            <figure class="large-figure">
+                <img src="./media/parta/one_step_0.75.png" alt="t = 0.75">
+                <figcaption>t = 0.75</figcaption>
+            </figure>
+        </div>
+
+        <p>
+            While still not perfect, the one-step estimates performed much better than the Gaussian blurs
+            when it comes to recreating our original image. More specifically, even in the one-step estimate of
+            t = 0.25, the resulting image still resembled the waterfall just as well as the 
+            t = 0.75 Gaussian blur.
+        </p>
+
+        <h2>Visualizing Velocity</h2>
+        <p>
+            In order to improve our denoising even more, we can visualize how off our one-step estimate 
+            velocity is from the true velocity, with the hopes of seeing where things went wrong. To do this,
+            we can determine the <b>ground-truth update</b> by calculating \(x_1-x_t\) and compare it to 
+            the velocities that our flow model predicted.
+        </p>
+
+        <div class="images">
+            <figure>
+                <img src="./media/parta/waterfall.jpg" alt="Original">
+                <figcaption>Original Waterfall</figcaption>
+            </figure>
+        </div>
+        <div class="images">
+            <figure class="large-figure">
+                <img src="./media/parta/velocity_0.25.png" alt="t = 0.25">
+                <figcaption>t = 0.25</figcaption>
+            </figure>
+            <figure class="large-figure">
+                <img src="./media/parta/velocity_0.50.png" alt="t = 0.50">
+                <figcaption>t = 0.50</figcaption>
+            </figure>
+            <figure class="large-figure">
+                <img src="./media/parta/velocity_0.75.png" alt="Ground-truth: t = 0.75">
+                <figcaption>t = 0.75</figcaption>
+            </figure>
+        </div>
+        <p>
+            To further demonstrate the differences in velocities, an error heatmap is provided where
+            each pixel represents an error value. The brighter the value means the greater the error
+            between the predicted and true velocity.
+        </p>
+
+        <h2>Iterative Denoising with Euler Sampling</h2>
+        <p>
+            In order for our final denoising result to be more accurate, we can break it down into
+            multiple smaller predictions, as the learned velocity changes as the image becomes less noisy.
+            We can use the Euler integration to do this:
+            \[x_{t+h}=x_t+hv_\theta(x_t,t,c)\]
+            With h representing the small step size between each prediction.
+        </p>
+        <div class="images">
+            <figure class="large-figure">
+                <img src="./media/parta/trajectory_main.png" alt="Euler Denoising Trajectory">
+                <figcaption>Euler Denoising Trajectory</figcaption>
+            </figure>
+        </div>
+        <p>
+            In the images above, the initial t = 0.50 with a step size of 0.02. The images above represents 
+            every fifth update. Even though this step size perfectly aligns with 1, our <code>euler_sample</code> function 
+            allows h to be shortened via <code>h = min(step_size, 1 - t)</code>, it can still handle situations where 
+            this isn't the case. When comparing Euler sampling to the previous images we've generated, Euler
+            is a clear winner almost perfectly recreating the original image. One-Step
+            denoising is second best, though a lot of the high-level details are missing.
+            On the other hand, although the Gaussian blur has the major aspects of the waterfall, the extra
+            leftover noise leaves it still far from the original image.
+        </p>
+        <div class="images">
+            <figure  class="large-figure">
+                <img src="./media/parta/comparison.png" alt="Comparison">
+                <figcaption>Comparison between Gaussian Blur, One-Step Estimate, and Euler Denoising</figcaption>
+            </figure>
+        </div>
+
+        <h2>Generating Images from Noise</h2>
+        <p>
+            On top of denoising images, our <code>euler_sample</code> function can also be used
+            to generate images from scratch. Five such examples are shown below, all using the 
+            prompt "a high quality photo" and an initial start from pure noise.
+        </p>            
+        <div class="images">
+            <figure>
+                <img src="./media/parta/conditional_0.png" alt="Generated image with seed 180">
+                <figcaption>Seed: 180</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/parta/conditional_1.png" alt="Generated image with seed 181">
+                <figcaption>Seed: 181</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/parta/conditional_2.png" alt="Generated image with seed 182">
+                <figcaption>Seed: 182</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/parta/conditional_3.png" alt="Generated image with seed 183">
+                <figcaption>Seed: 183</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/parta/conditional_4.png" alt="Generated image with seed 184">
+                <figcaption>Seed: 184</figcaption>
+            </figure>
+        </div>
+        <p>
+            There are a few things to note about the generated images above. For one, 
+            they all appear to be humanoids, signifiying that the model was likely
+            primaily trained on humans. Additionally, while human-like, the samples generates
+            overall aren't high quality with many deformities in them.
+        </p>
+    </div>
+    <div>
+        <h2>Classifier-Free Guidance</h2>
+        <p>
+            In order to improve our image generation, we can use classifier-free guidance. Unlike our 
+            previous attempts, CFG helps point the generation into forming what the prompt says 
+            while also not slashing the diversity of the images like with normal guidance. To do this,
+            we implement <code>cfg_velocity</code> which uses the formula:
+            \[v_{cfg} = v_c+w(v_c-v_u)\]
+            Where \(v_c\) and \(v_u\) represents the conditional and unconditional velocities respectively
+            and w represents guidance weight. We can then use CFG on the same seeds as before to see how
+            they compare.
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/parta/cfg_0.png" alt="CFG generated image with seed 180">
+                <figcaption>CFG Seed: 180</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/parta/cfg_1.png" alt="CFG generated image with seed 181">
+                <figcaption>CFG Seed: 181</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/parta/cfg_2.png" alt="CFG generated image with seed 182">
+                <figcaption>CFG Seed: 182</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/parta/cfg_3.png" alt="CFG generated image with seed 183">
+                <figcaption>CFG Seed: 183</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/parta/cfg_4.png" alt="CFG generated image with seed 184">
+                <figcaption>CFG Seed: 184</figcaption>
+            </figure>
+        </div>
+        <p>
+            In the images above, they all use <code>w = 7</code> and a step size of 0.02.
+            While still not perfect, these images all appear mostly realistic with subtle
+            errors. For example, seed 183 with CFG depicts a man with a slightly irregular eye
+            while seed 183 without CFG lacks any clothes and some facial features.
+        </p>
+    </div>
+    <div>
+        <h2>Image-to-Image Editing</h2>
+        <p>
+            Currently, our flow model is just trying to recreate an image given some noise. To do this, it
+            "hallucinates" and comes up with random things in order to make something out of the noise.
+            We can use these "hallucinations" to make edits to our images by adding noise to our
+            images and denoising it again.
+        </p>
+        <div class="images">
+            <figure class="large-figure">
+                <img src="./media/parta/edit_campanile.png" alt="Edits of Campanile">
+                <figcaption>Campanile</figcaption>
+            </figure>
+        </div>
+        <p>
+            The further away the starting point is from the clean image the more "edits". In the images
+            with t &lt; 0.10, the final images barely even resemble the Campanile, while in each of the later
+            ones each have more features added back. In the next two images, the same pattern can be seen.
+        </p>
+        <div class="images">
+            <figure class="large-figure">
+                <img src="./media/parta/edit_my_image_1.png" alt="Edits of Waterfall">
+                <figcaption>Waterfall</figcaption>
+            </figure>
+            <figure class="large-figure">
+                <img src="./media/parta/edit_my_image_2.png" alt="Edits of ">
+                <figcaption>Ice Cream</figcaption>
+            </figure>
+        </div>
+        <p>
+            Not only does this "editing" work well with normal images, it works especially well
+            with nonrealistic images, as seen in the three images below.
+        </p>
+        <div class="images">
+            <figure class="large-figure">
+                <img src="./media/parta/edit_web_image.png" alt="Edits of a Burger">
+                <figcaption>Web Image: Burger</figcaption>
+            </figure>
+            <figure class="large-figure">
+                <img src="./media/parta/edit_drawing_1.png" alt="Edits of a Tree">
+                <figcaption>Drawing: Tree</figcaption>
+            </figure>
+            <figure class="large-figure">
+                <img src="./media/parta/edit_drawing_2.png" alt="Edits of a Car">
+                <figcaption>Drawing: Car</figcaption>
+            </figure>
+        </div>
+        <p>
+            In all five examples, the images starting from t = 0.02 had the most "edits" to them,
+            barely even resembling the original images. This carries on for only a bit longer though,
+            as by t = 0.10 the original images began forming again with minor edits to them.
+        </p>
+
+        <h2>Text-Guided Image Editing</h2>
+        <p>
+            With our <code>edit</code> function, we can also guide the model into changing the image into what 
+            we want by changing what prompt we use. Up until now, we've just been using "a high quality photo"
+            as our prompt, but we can be more specific.
+        </p>
+        <div class="images">
+            <figure class="large-figure">
+                <img src="./media/parta/text_edit_campanile.png" alt="Text-Guided Campanile">
+                <figcaption>Campanile to Rollercoaster</figcaption>
+            </figure>
+            <figure class="large-figure">
+                <img src="./media/parta/text_edit_my_image_1.png" alt="Text-Guided Waterfall">
+                <figcaption>Waterfall to Snowy Mountain</figcaption>
+            </figure>
+            <figure class="large-figure">
+                <img src="./media/parta/text_edit_my_image_2.png" alt="Text-Guided Ice Cream">
+                <figcaption>Ice Cream to Coffee</figcaption>
+            </figure>
+        </div>
+        <p>
+            Unlike the previous section, by changing the prompt to be more specific, we can change 
+            the edits from being basically random into depicted what every we want. There is some 
+            limits though, as prompts farther from the original image seemed to perform worse.
+        </p>
+        <p>
+            For instance, the prompt for the Campanile was "a photograph of a rollercoaster" and with
+            few overlapping details, the resulting edit had many errors. For the waterfall, the prompt
+            was "a photograph of a snowy mountain". This performed much better as not only are they
+            both depicting nature, but they also share a similar color palette.
+        </p>
+
+        <h2>Visual Anagrams</h2>
+        <p>
+            Using our flow model, we can also create Visual Anagrams, which are images that look like one
+            thing when right side up and another thing when flipped upside down. This works by first 
+            denoising an image like normal with prompt \(p_1\) to find \(v_1\), and then flipping it to
+            denoise it again with prompt \(p_2\) to find \(v_2\). By averaging the two velocities together,
+            we can guide the denoising process into creating an image that shows both images.
+        </p>
+
+        <div class="images">
+            <figure class="med-figure">
+                <img src="./media/parta/anagram_views_0.png" alt="Dog and a Cat Anagram">
+                <figcaption>Dog and a Cat Anagram</figcaption>
+            </figure>
+            <figure class="med-figure">
+                <img src="./media/parta/anagram_views_1.png" alt="Fire and a Forest Anagram">
+                <figcaption>Fire and a Forest Anagram</figcaption>
+            </figure>
+        </div>
+        <p>
+            As these visual anagrams rely on creating an illusion, picking two good prompts mattered a lot,
+            as evident by one of the failed attempts shown below.
+        </p>
+        <div class="images">
+            <figure class="med-figure">
+                <img src="./media/parta/anagram_views_1_maybe.png" alt="Laptop and Farm Anagram?">
+                <figcaption>Attempted Anagram of a Laptop + Farm</figcaption>
+            </figure>
+        </div>
+
+        <h2>Hybrid Images</h2>
+        <p>
+            Similarly to visual anagrams, we can combine two different velocities together to make hybrid images
+            just like the ones from Project 2. Rather than flipping the noise before conditioning the model
+            on a different prompt, we instead can run a high or low pass filter before conditioning the model.
+            This gives us two different velocities with one guiding the low frequencies towards \(p_1\)
+            and another guiding the high frequencies to \(p_2\) 
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/parta/hybrid_0.png" alt="Near: Hybrid of a Bear and Starry Night">
+                <figcaption>Near: A painting of a starry night sky</figcaption>
+            </figure>
+            <figure style="width: 100px;">
+                <img src="./media/parta/hybrid_0.png" alt="Distant: Hybrid of a Bear and Starry Night">
+                <figcaption>Distant: A painting of a bear</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/parta/hybrid_1.png" alt="Near: Hybrid of a Bird and Stones">
+                <figcaption>Near: A lithograph of stones</figcaption>
+            </figure>
+            <figure style="width: 100px;">
+                <img src="./media/parta/hybrid_1.png" alt="Distant: Hybrid of a Bird and Stones">
+                <figcaption>Distant: A lithograph of a crow</figcaption>
+            </figure>
+        </div>
+    </div>
+
+    <div>
+        <h2>Implementing the UNet</h2>
+        <p>
+            On our way to training our own flow matching model, we first will have to train
+            our own Single-step UNet. At a high level, this model first downsamples a couple of times 
+            using <code>DownBlock</code> and <code>Flatten</code>. Then, it performs a few upsampling
+            with <code>Unflatten</code> and <code>UpBlock</code>. This sequence allows us to condense the 
+            image into a small form, enabling the model to grasp the global context much more 
+            clearly before returning back to the original dimensions.
+        </p>
+        <p>
+            Additionally, during the upsampling side of the UNet, we also include skip connections
+            via <code>torch.cat</code> that brings back the high-level context that was lost during 
+            the downsampling process. Without this feature, our UNet would only be focusing on the 
+            global context and not any of the finer details of the image.
+        </p>
+        <h2>Using the UNet to Train a Denoiser</h2>
+        <p>
+            Before we can train our denoiser, we need to be able to take our images and add
+            noise to them.
+        </p>
+        <div class="images">
+            <figure class="med-figure">
+                <img src="./media/partb/noisy_images.png" alt="Visualization of the Noising Process">
+                <figcaption>Input Noise Levels: sigma = [0.0, 0.2, 0.4, 0.5, 0.6, 0.8, 1.0]</figcaption>
+            </figure>
+        </div>
+        <p>
+            The image above shows an example of the noisifying process, with sigma representing
+            just how much noise we incorporate into our original image, represented by the formula:
+            \[z = x+\sigma\epsilon\]
+            where \(\epsilon\) is the random noise.
+        </p>
+        <h2>Single-Step Denoising Training</h2>
+        <p>
+            To train our model, we will be using \(\sigma\) = 0.5 and will train on batches of images
+            over the course of 5 epochs. With each passing epoch, our denoising model gets better, as shown
+            below.
+        </p>
+        <div class="images">
+            <figure class="med-figure">
+                <img src="./media/partb/denoise_training1.png" alt="Single-step Denoising, epoch 1">
+                <figcaption>Epoch 1</figcaption>
+            </figure>
+            <figure class="med-figure">
+                <img src="./media/partb/denoise_training5.png" alt="Single-step Denoising, epoch 5">
+                <figcaption>Epoch 5</figcaption>
+            </figure>
+            <figure class="med-figure">
+                <img src="./media/partb/denoise_loss.png" alt="Single-Step Loss Plot">
+                <figcaption>Training Loss</figcaption>
+            </figure>
+        </div>
+    
+        <h2>Out-Of-Distribution Testing</h2>
+        <p>
+            Our newly trained model works well when we use a fixed \(\sigma\) = 0.5,
+            but we can also use it on a variety of \(\sigma\) values to see how well it holds up.
+        </p>
+        <div class="images">
+            <figure class="med-figure">
+                <img src="./media/partb/OoD0.0.png" alt="Out-Of-Distribution, sig = 0.0">
+            </figure>
+            <figure class="med-figure">
+                <img src="./media/partb/OoD0.2.png" alt="Out-Of-Distribution, sig = 0.2">
+            </figure>
+            <figure class="med-figure">
+                <img src="./media/partb/OoD0.4.png" alt="Out-Of-Distribution, sig = 0.4">
+            </figure>
+            <figure class="med-figure">
+                <img src="./media/partb/OoD0.5.png" alt="Out-Of-Distribution, sig = 0.5">
+            </figure>
+            <figure class="med-figure">
+                <img src="./media/partb/OoD0.6.png" alt="Out-Of-Distribution, sig = 0.6">
+            </figure>
+            <figure class="med-figure">
+                <img src="./media/partb/OoD0.8.png" alt="Out-Of-Distribution, sig = 0.8">
+            </figure>
+            <figure class="med-figure">
+                <img src="./media/partb/OoD1.0.png" alt="Out-Of-Distribution, sig = 1.0">
+            </figure>
+        </div>
+        <p>
+            Based on the images above, our single-step denoising model can handle some variety of 
+            noise, but as the noise increase past the \(\sigma\) = 0.5 mark, the quality of the final
+            results slowly degrades.
+        </p>
+        <h2>Denoising Pure Noise</h2>
+        <p>
+            On top of recreating digits from noisy images, a denoiser can also be used to
+            generate them from pure noise. This can be thought of as just starting from noise
+            rather than a linear combination of noise and our original image.
+        </p>
+        <div class="images">
+            <figure class="med-figure">
+                <img src="./media/partb/pure_noise_denoise_training1.png" alt="Pure Noise Denoising, epoch 1">
+                <figcaption>Epoch 1</figcaption>
+            </figure>
+            <figure class="med-figure">
+                <img src="./media/partb/pure_noise_denoise_training5.png" alt="Pure Noise Denoising, epoch 5">
+                <figcaption>Epoch 5</figcaption>
+            </figure>
+            <figure class="med-figure">
+                <img src="./media/partb/pure_noise_denoise_loss.png" alt="Pure Noise Loss Plot">
+                <figcaption>Pure Noise Loss</figcaption>
+            </figure>
+        </div>
+        <p>
+            Unfortunately, our single-step denoiser does not perform well in this generating task.
+            Even after five epochs, rather than containing digits, the generated outputs on
+            resembles patterns of random strokes. This is likely due to the fact that our model
+            only learns to predict what minimizes the sum of squared distances to <b>ALL</b>
+            training examples. In this case, a couple strokes will be much better as its "closer"
+            to all digits than a single digit.
+            
+        </p>
+    </div>
+    <div>
+        <h2>Adding Time Conditioning to UNet</h2>
+        <p>
+            To create a better denoiser, we will have to denoise the image iteratively and we will
+            do so with <b>flow matching</b>. At a high level, our flow matching model will
+            take in intermediate noisy samples constructed by the formula:
+            \[x_t=(1-t)x_0+tx_1\]
+            At each intermediate step, it'll learn what is the current best velocity, take a step
+            in that direction, and then repeat. 
+        </p>
+        <h2>Training the UNet</h2>
+        <p>When training this iterative model, one key detail that separates it from the 
+            previous ones is that it will use an exponential learning rate that decays 
+            over the course of time rather than a fixed learning rate. This is because
+            taking larger steps in the beginning of the training helps to quickly 
+            make it towards our target manifold, while the smaller learning rate
+            later one helps fine-tune our model weights to exactly what we want. 
+        </p>
+        <div class="images">
+            <figure class="med-figure">
+                <img src="./media/partb/TC_Loss_loss.png" alt="Time Conditioning Loss Plot">
+                <figcaption>Time Conditioning Loss</figcaption>
+            </figure>
+        </div>
+        <h2>Sampling from the UNet</h2>
+        <div class="images">
+            <figure class="med-figure">
+                <img src="./media/partb/TC_Samples_ epoch = 1.png" alt="TC Sampling, epoch 1">
+                <figcaption>Epoch 1</figcaption>
+            </figure>
+            <figure class="med-figure">
+                <img src="./media/partb/TC_Samples_ epoch = 5.png" alt="TC Sampling, epoch 5">
+                <figcaption>Epoch 5</figcaption>
+            </figure>
+            <figure class="med-figure">
+                <img src="./media/partb/TC_Samples_ epoch = 10.png" alt="TC Sampling, epoch 10">
+                <figcaption>Epoch 10</figcaption>
+            </figure>
+        </div>
+        <p>
+            In the three images above we can see that, unlike with the single-step generator,
+            digits are starting to properly form, though it's not 100% accurate yet.
+        </p>
+        <h2>Adding Class-Conditioning to UNet</h2>
+        <p>
+            To further improve our flow matching model, we can add class conditioning. This
+            means that on top of just giving our model some noise for it to clean up,
+            we will also be giving it labels guiding it towards what digit we want it to make.
+        </p>
+        <p>
+            One issue with directly conditioning like this is that it can drastically limit
+            the diversity of images our model generates. To combat this, we will be once 
+            again using CFG, by incorporating some unconditional generations with our
+            conditional ones in the training process.
+        </p>
+        <h2>Training and Sampling the UNet with Conditioning Vector</h2>
+        <div class="images">
+            <figure class="med-figure">
+                <img src="./media/partb/CC_Loss_scheduler_loss.png" alt="Class Conditioning Loss Plot">
+                <figcaption>Class-Conditioning Loss</figcaption>
+            </figure>
+            <figure class="med-figure">
+                <img src="./media/partb/CC_Samples_scheduler_ epoch = 1.png" alt="CC Sampling, epoch 1">
+                <figcaption>Epoch 1</figcaption>
+            </figure>
+            <figure class="med-figure">
+                <img src="./media/partb/CC_Samples_scheduler_ epoch = 5.png" alt="CC Sampling, epoch 5">
+                <figcaption>Epoch 5</figcaption>
+            </figure>
+            <figure class="med-figure">
+                <img src="./media/partb/CC_Samples_scheduler_ epoch = 10.png" alt="CC Sampling, epoch 10">
+                <figcaption>Epoch 10</figcaption>
+            </figure>
+        </div>
+        <p>
+            With this final change, we can see as early as epoch 5 legible digits begin forming, with 
+            epoch 10 being completely perfect. Additionally, as we remained guidance free, we maintained
+            most of our output diversity.
+        </p>
+        <h2>Scheduler Free Class Conditioning</h2>
+        <p>
+            As a final note, our decaying learning rate isn't entirely necessary to get good results.
+            In reality, a constant learning rate can be just as good, with a bit changes to compensate
+            for removing the scheduler. In this case, this meant reducing the overall learning rate
+            to <b>1e-3</b> from the initial <b>1e-2</b>, as it acts as an average of the exponential learning rate.
+        </p>
+        <div class="images">
+            <figure class="med-figure">
+                <img src="./media/partb/CC_Loss_no-scheduler_loss.png" alt="Class Conditioning Loss Plot">
+                <figcaption>Class-Conditioning Loss w/o Scheduler</figcaption>
+            </figure>
+            <figure class="med-figure">
+                <img src="./media/partb/CC_Samples_no-scheduler_ epoch = 1.png" alt="CC Sampling, epoch 1">
+                <figcaption>Epoch 1</figcaption>
+            </figure>
+            <figure class="med-figure">
+                <img src="./media/partb/CC_Samples_no-scheduler_ epoch = 5.png" alt="CC Sampling, epoch 5">
+                <figcaption>Epoch 5</figcaption>
+            </figure>
+            <figure class="med-figure">
+                <img src="./media/partb/CC_Samples_no-scheduler_ epoch = 10.png" alt="CC Sampling, epoch 10">
+                <figcaption>Epoch 10</figcaption>
+            </figure>
+        </div>
+    </div>
+
+    <nav class="nav-bar">
+        <a href="../2/index.html" class="nav-link">← Project 2</a>
+        <a href="../error.html" class="nav-link">Project 4 →</a>
+    </nav>
+</body>
+</html>
