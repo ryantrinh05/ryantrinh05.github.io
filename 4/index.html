@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Project 4</title>
+    <link rel="stylesheet" href="../style.css">
+    <!-- Prism CSS for code block styling -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+    <!-- Prism JS for language parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    
+    <!-- MathJax for rendering mathematical equations -->
+    <script>
+        MathJax = {
+            tex: {
+            inlineMath: [['\\(', '\\)']],
+            displayMath: [['\\[', '\\]']]
+            }
+        };
+    </script>
+    <script
+        defer
+        src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+    </script>
+
+</head>
+<body>
+    <nav class="nav-bar">
+        <a href="../3/index.html" class="nav-link">← Project 3</a>
+        <a href="../error.html" class="nav-link">Final Project →</a>
+    </nav>
+
+    <h1>Project 4: (Auto)stitching and Photo Mosaics</h1>
+    <div>
+        <h2>A.1: Shoot the Pictures</h2>
+        <p>
+            Before any image warping, we will need to have a few sets of photographs with
+            a <b>projective transformation</b> between them. To obtain these photos, we can hold the center
+            of projection fixed and simply rotate the camera to capture the transformed photos. 
+        </p>
+
+        <div class="images">
+            <figure>
+                <img src="./media/parta/building_A.jpg" alt="Set 1, Image A">
+                <figcaption>Building A</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/parta/building_B.jpg" alt="Set 1, Image B">
+                <figcaption>Building B</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/parta/school_A.jpg" alt="Set 2, Image A">
+                <figcaption>School A</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/parta/school_B.jpg" alt="Set 2, Image B">
+                <figcaption>School B</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/parta/view_A.jpg" alt="Set 3, Image A">
+                <figcaption>View A</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/parta/view_B.jpg" alt="Set 3, Image B">
+                <figcaption>View B</figcaption>
+            </figure>
+        </div>
+        <p>
+            In the photo sets above, on top of a fixed COP and rotation, there is also overlap of
+            roughly 40-50% within each set of images. This overlap allows for the correspondences and 
+            for the future mosaics to be formed.
+        </p>
+
+
+        <h2>A.2: Recover Homographies</h2>
+        <p>
+            Now that we have the sets of photos, we have to recover the homographies between each set of images.
+            To do this, we first select <b>6</b> correspondence points on each image, representing the 
+            exact same points. Even though we only need 4 points to recover the homography, we will use 6
+            as it produces an overdetermined system that is much easier to solve using least-squares.
+        </p>
+        <div class="images">
+            <figure class="med-figure">
+                <img src="./media/parta/building_correspondences.jpg" alt="Set 1, Correspondence Points">
+                <figcaption>Building: Correspondence Points</figcaption>
+            </figure>
+            <figure class="med-figure">
+                <img src="./media/parta/school_correspondences.jpg" alt="Set 2, Correspondence Points">
+                <figcaption>School: Correspondence Points</figcaption>
+            </figure>
+            <figure class="med-figure">
+                <img src="./media/parta/view_correspondences.jpg" alt="Set 3, Correspondence Points">
+                <figcaption>View: Correspondence Points</figcaption>
+            </figure>
+        </div>
+        <p>
+            After obtaining the correspondence points, we can use them within a linear system of equations 
+            in the form of \(AH=b\) to determine
+            the H associated with each set of images. For the homographies calculated, they will represent
+            the transformation from the right images onto the left images.
+        </p>
+        
+        <p>Building</p>
+        <p>
+            \[
+                H =
+                \begin{bmatrix}
+                0.95484 & -0.25126 & 12.04108 \\
+                0.00345 & 0.62718 & 394.96654 \\
+                0.00003 & -0.00064 & 1.00000
+                \end{bmatrix}
+            \]
+
+            \[
+                \begin{array}{c@{\qquad}c}
+                A = \begin{bmatrix}
+                549.6 & 46.6 & 1 & 0 & 0 & 0 & -292586.8 & -24829.9 \\
+                0 & 0 & 0 & 549.6 & 46.6 & 1 & -236809.8 & -20096.5 \\
+                664.3 & 82.0 & 1 & 0 & 0 & 0 & -429863.2 & -53058.4 \\
+                0 & 0 & 0 & 664.3 & 82.0 & 1 & -308680.5 & -38100.7 \\
+                533.9 & 37.2 & 1 & 0 & 0 & 0 & -275831.8 & -19225.7 \\
+                0 & 0 & 0 & 533.9 & 37.2 & 1 & -226264.0 & -15770.8 \\
+                145.8 & 132.3 & 1 & 0 & 0 & 0 & -18728.6 & -16996.4 \\
+                0 & 0 & 0 & 145.8 & 132.3 & 1 & -75861.9 & -68845.5 \\
+                142.6 & 27.0 & 1 & 0 & 0 & 0 & -20454.0 & -3872.1 \\
+                0 & 0 & 0 & 142.6 & 27.0 & 1 & -59658.0 & -11293.7 \\
+                22.4 & 83.6 & 1 & 0 & 0 & 0 & -290.9 & -1084.9 \\
+                0 & 0 & 0 & 22.4 & 83.6 & 1 & -10589.2 & -39487.3
+                \end{bmatrix}
+                &
+                \mathbf b = \begin{bmatrix}
+                532.3\\430.9\\647.1\\464.6\\516.6\\423.8\\
+                128.5\\520.4\\143.4\\418.3\\13.0\\472.5
+                \end{bmatrix}
+                \end{array}
+            \]
+        </p>
+
+        <p>School</p>
+        <p>
+            \[
+                H =
+                \begin{bmatrix}
+                0.93921 & -0.14248 & 21.28105 \\
+                0.00339 & 0.78554 & 261.70137 \\
+                -0.00000 & -0.00036 & 1.00000
+                \end{bmatrix}
+            \]
+
+            \[
+                \begin{array}{c@{\qquad}c}
+                A = \begin{bmatrix}
+                104.9 & 23.1 & 1 & 0 & 0 & 0 & -12325.1 & -2710.5 \\
+                0 & 0 & 0 & 104.9 & 23.1 & 1 & -29787.1 & -6550.6 \\
+                324.1 & 14.4 & 1 & 0 & 0 & 0 & -105566.4 & -4699.3 \\
+                0 & 0 & 0 & 324.1 & 14.4 & 1 & -88717.6 & -3949.3 \\
+                746.1 & 13.6 & 1 & 0 & 0 & 0 & -540768.9 & -9888.9 \\
+                0 & 0 & 0 & 746.1 & 13.6 & 1 & -207136.4 & -3787.8 \\
+                590.5 & 241.5 & 1 & 0 & 0 & 0 & -350988.9 & -143550.2 \\
+                0 & 0 & 0 & 590.5 & 241.5 & 1 & -293849.2 & -120180.8 \\
+                308.4 & 304.4 & 1 & 0 & 0 & 0 & -92451.6 & -91236.5 \\
+                0 & 0 & 0 & 308.4 & 304.4 & 1 & -173591.2 & -171309.6 \\
+                185.8 & 334.2 & 1 & 0 & 0 & 0 & -31469.9 & -56595.6 \\
+                0 & 0 & 0 & 185.8 & 334.2 & 1 & -111171.7 & -199931.8
+                \end{bmatrix}
+                &
+                \mathbf b = \begin{bmatrix}
+                117.5\\283.9\\325.7\\273.7\\724.8\\277.6\\
+                594.4\\497.6\\299.8\\562.9\\169.3\\598.2
+                \end{bmatrix}
+                \end{array}
+            \]
+        </p>
+
+        <p>View</p>
+        <p>
+            \[
+                H =
+                \begin{bmatrix}
+                0.83543 & -0.25729 & 67.48451 \\
+                -0.03016 & 0.59182 & 276.76825 \\
+                -0.00007 & -0.00063 & 1.00000
+                \end{bmatrix}
+            \]
+
+            \[
+                \begin{array}{c@{\qquad}c}
+                A = \begin{bmatrix}
+                278.6 & 133.9 & 1 & 0 & 0 & 0 & -82626.0 & -39705.4 \\
+                0 & 0 & 0 & 278.6 & 133.9 & 1 & -108198.2 & -51993.9 \\
+                302.9 & 250.1 & 1 & 0 & 0 & 0 & -94372.9 & -77932.9 \\
+                0 & 0 & 0 & 302.9 & 250.1 & 1 & -153121.4 & -126447.2 \\
+                522.9 & 124.4 & 1 & 0 & 0 & 0 & -279598.5 & -66531.5 \\
+                0 & 0 & 0 & 522.9 & 124.4 & 1 & -198183.2 & -47158.4 \\
+                525.3 & 239.1 & 1 & 0 & 0 & 0 & -287462.2 & -130875.2 \\
+                0 & 0 & 0 & 525.3 & 239.1 & 1 & -260157.7 & -118444.0 \\
+                606.2 & 41.9 & 1 & 0 & 0 & 0 & -366045.2 & -25318.1 \\
+                0 & 0 & 0 & 606.2 & 41.9 & 1 & -183547.6 & -12695.4 \\
+                729.6 & 56.9 & 1 & 0 & 0 & 0 & -528809.1 & -41212.3 \\
+                0 & 0 & 0 & 729.6 & 56.9 & 1 & -230643.2 & -17975.0
+                \end{bmatrix}
+                &
+                \mathbf b = \begin{bmatrix}
+                296.6\\388.4\\311.6\\505.5\\534.7\\379.0\\
+                547.3\\495.3\\603.8\\302.8\\724.8\\316.1
+                \end{bmatrix}
+                \end{array}
+            \]
+        </p>
+
+    </div>
+
+    <div>
+        <h2>A.3: Warp the Images</h2>
+        <p>
+            After obtaining the homographies, we can use them to warp each image towards their reference image.
+            This will be done through the use of inverse warping, as it produces the same results as
+            forward warping without the risk of holes appearing throughout our final image. Additionally,
+            as pixels after the warping may not line up exactly, we will have to interpolate to figure out
+            what the correct pixel value should be. 
+        </p>
+        <p> 
+            The two kinds of interpolation which we will be using will be <b>Nearest Neighbor Interpolation</b>,
+            where a pixel's value is equal to its nearest neighbor, and <b>Bilinear Interpolation</b>,
+            where the value is the weighted average of the four closest pixels.
+        </p>
+        <p>
+            To test two interpolation methods, we can perform rectification on some photos that 
+            we know are rectangular, as this means that we can hard-encode what the resulting output size is.
+        </p>
+
+        <div class="images">
+            <figure>
+                <img src="./media/parta/rect1.jpg" alt="Rectangular Image 1">
+                <figcaption>Number Sign</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/parta/rect2.jpg" alt="Rectangular Image 2">
+                <figcaption>Photo Frame</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/parta/rect3.jpg" alt="Rectangular Image 3">
+                <figcaption>Parking Sign</figcaption>
+            </figure>
+        </div>
+        <p>
+            In all three original images above, the photos are taken at an angle, such that the items represented
+            don't appear rectangular.
+        </p>
+        <div class="images">
+            <figure class="med-figure">
+                <img src="./media/parta/num_rectification.png" alt="rectification 1">
+                <figcaption>Number Sign: Rectification</figcaption>
+            </figure>
+            <figure class="med-figure">
+                <img src="./media/parta/photo_rectification.png" alt="rectification 2">
+                <figcaption>Photo Frame: Rectification</figcaption>
+            </figure>
+            <figure class="med-figure">
+                <img src="./media/parta/sign_rectification.png" alt="rectification 3">
+                <figcaption>Parking Sign: Rectification</figcaption>
+            </figure>
+        </div>
+        <p>
+            For each image, they were rectified using the Nearest Neighbor interpolation and
+            the bilinear interpolation. Across the board, bilinear interpolation took twice as long
+            to finish compared to nearest neighbor interpolation. On the other hand, the nearest neighbor
+            results contained much more aliasing compared to the bilinear ones. Both results are
+            expected as bilinear interpolation needs to query more pixels, but does average across them,
+            hence the smoother textures.
+        </p>
+    </div>
+
+    <div>
+        <h2>A.4: Blend the Images into a Mosaic</h2>
+        <p>
+            The final step now is to actually create the mosaics using the pictures taken in
+            section A1. To do this, we first have to use our <code>computeH</code> and
+            <code>correspondence</code> functions to find the homographies and the correspondence points
+            between each set of images. From there, we can find the bounding box for each mosaic, allowing
+            us to iterate through each pixel and grab the values from both images to create our final mosaic.
+            For the mosaics below, the warping was done using bilinear interpolation, as even if it takes
+            slightly longer, it produces a much cleaner result.
+        </p>
+        <p>
+            However, this alone faces two problems: visible seams where the images overlap and 
+            an overall overexposed image. These two problems can be solved with the use of an 
+            alpha mask. This mask utilizes simple feathering where alpha is set to 1 in the center of the image
+            and slowly approaches zero as it goes closer to the edges. Additionally, this alpha mask
+            sums up all of the pixel values multiplied with their alphas. This allows the final image to be divided
+            by the total, normalizing the image to the correct colors.
+        </p>
+
+        <div class="images">
+            <figure>
+                <img src="./media/parta/building_mosaic.jpg" alt="Set 1, Mosaic">
+                <figcaption>Building: Mosaic</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/parta/school_mosaic.jpg" alt="Set 2, Mosaic">
+                <figcaption>School: Mosaic</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/parta/view_mosaic.jpg" alt="Set 3, Mosaic">
+                <figcaption>View: Mosaic</figcaption>
+            </figure>
+        </div>
+    </div>
+
+    <nav class="nav-bar">
+        <a href="../3/index.html" class="nav-link">← Project 3</a>
+        <a href="../error.html" class="nav-link">Final Project →</a>
+    </nav>
+</body>
+</html>
