@@ -307,6 +307,92 @@
         </div>
     </div>
 
+    <div>
+        <h2>B.1: Harris Corner Detection</h2>
+        <p>
+            Even though manually selecting correspondence points works, it is also possible
+            to automatically stitch images together into mosaics. To achieve this, we will
+            be using the multi-image matching framework introduced by <b>Brown, Szeliski, and 
+            Winder (2005).</b>
+        </p>
+        <p>
+            The first part of their paper is <b>Harris Corner Detection</b>. While the paper mentions
+            a strength threshold of 10.0, a threshold of 1.0 was selected instead as 10.0 resulted
+            in no corners being detected. On the other hand, a small threshold like 0.3 resulted
+            in the function detecting too many corners, as shown below.
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/partb/no_ANMS_small.jpg" alt="No ANMS, t=0.3">
+                <figcaption>Harris Corner Detection, t=0.3</figcaption>
+            </figure>
+            <figure>
+                <img src="./media/partb/no_ANMS.jpg" alt="No ANMS, t=1.0">
+                <figcaption>Harris Corner Detection, t=1.0</figcaption>
+            </figure>
+        </div>
+        <p>
+            Thresholding alone isn't enough though, as it usually results in all of the selected corners being
+            clustered together. To fix this, we can use <b>Adaptive Non-Maximal Suppression (ANMS)</b> (Brown et al., 2005).
+            This essence, this process calculates a radius around each corner that has no corner with sufficiently
+            larger strength. ANMS then allows us to selected however many corners we want, prioritizing the
+            ones with the larger radius.
+        </p>
+        <div class="images">
+            <figure class="med-figure">
+                <img src="./media/partb/ANMS.jpg" alt="ANMS">
+                <figcaption>ANMS, n = 500 pts</figcaption>
+            </figure>
+        </div>
+        <p>
+            Unlike the ones without ANMS, the resulting corners are now spaced apart properly, which will
+            help us out later one when trying to create mosaics.
+        </p>
+    </div>
+    <div>
+        <h2>B.2: Feature Descriptor Extraction</h2>
+        <p>
+            Just having the corner points isn't enough, as we want to be able to extract information
+            about the image. To do this, we will implement the feature descriptor extration mentioned within
+            the paper. Their method involves first blurring the image, sampling a 40x40 window around each
+            corner, downsampling it down to 8x8, and then bias/gain-normalizing it in order to
+            truly extract the proper information (Brown et al., 2005). This leaves us with 8x8 feature 
+            descriptors about each corner.
+        </p>
+        <div class="images">
+            <figure>
+                <img src="./media/partb/feature1.jpg" alt="Feature Descriptor Extraction 1">
+            </figure>
+            <figure>
+                <img src="./media/partb/feature8.jpg" alt="Feature Descriptor Extraction 8">
+            </figure>
+            <figure>
+                <img src="./media/partb/feature100.jpg" alt="Feature Descriptor Extraction 100">
+            </figure>
+        </div>
+        <h2>B.3: Feature Matching</h2>
+        <p>
+            On their own, the feature descriptor doesn't seem all that helpful. However, they can be extremely
+            helpful when it comes to aligning the separate images as areas that we would've manually selected
+            for correspondence points will have similar descriptors.
+        </p>
+        <p>
+            To do this, we will find the Euclidean distance between each descriptor of one image and the descriptor
+            of a separate image we are trying to stitch together. We can then use that to find which features
+            are actually a match with one another.
+        </p>
+        <div class="images">
+            <figure class="med-figure">
+                <img src="./media/partb/matched.jpg" alt="Feature Matching">
+                <figcaption>Building: Feature Matching</figcaption>
+            </figure>
+        </div>
+        <p>
+            As seen in the image above, this basic feature matching can have a lot of error when it comes
+            to matching points. To solve this, we will implement <b>RANSAC</b>.
+        </p>
+    </div>
+
     <nav class="nav-bar">
         <a href="../3/index.html" class="nav-link">← Project 3</a>
         <a href="../error.html" class="nav-link">Final Project →</a>
